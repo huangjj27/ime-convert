@@ -1,0 +1,19 @@
+[package]
+name = "im-select-rs"
+version = "0.1.0"
+authors = ["huangjj27 <huangjj.27@qq.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+structopt = "0.3"
+
+[dependencies.winapi]
+version = "0.3"
+features = ["winuser", "imm"]
+
+# [patch.winapi]
+# git = "https://github.com/LNSEAB/winapi-rs"
+# branch = "imm"
+# features = ["winuser", "imm"]
