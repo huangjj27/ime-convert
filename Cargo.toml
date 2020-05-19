@@ -9,8 +9,8 @@ edition = "2018"
 [dependencies]
 structopt = "0.3"
 
-[dependencies.winapi]
-version = "0.3"
-git = "https://github.com/LNSEAB/winapi-rs"
-branch = "imm"
-features = ["winuser", "imm"]
+# [dependencies.winapi]
+# version = "0.3"
+# git = "https://github.com/LNSEAB/winapi-rs"
+# branch = "imm"
+# features = ["winuser", "imm"]
