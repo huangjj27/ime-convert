@@ -1,35 +1,69 @@
-// use winapi::shared::minwindef::HIMC;
-// use winapi::shared::minwindef::HWND;
+//! Ime wrapper for VSCode window, Which should be fore-window when calling this binary.
+
+use winapi::um::imm::ImmGetConversionStatus;
+use winapi::um::imm::ImmReleaseContext;
+use winapi::shared::windef::HWND;
+use winapi::shared::minwindef::TRUE;
+use winapi::shared::minwindef::FALSE;
+use winapi::um::imm::HIMC;
+use winapi::um::imm::ImmGetContext;
+use winapi::um::winuser::GetForegroundWindow;
+use winapi::shared::minwindef::DWORD;
 
 // use std::raw::CString;
 
-// pub struct Ime {
-//     handle: ImeHandle,
-//     desc: ImeDescription,
-//     status: ConversionStatus
-// }
+/// Ime wrapper for VSCode window, Which should be fore window when calling this binary.
+pub struct Ime {
+    win: WindowHandle,
+    handle: ImeHandle,
+}
 
-// type ImeHandle = HIMC;
-// type ImeDescription = CString;
+type WindowHandle = HWND;
+type ImeHandle = HIMC;
+type ConversionStatus = DWORD;
 
-// pub enum ConversionStatus {
-//     Native(Locale),
-//     AlphaNumeric,
-// }
+impl Ime {
+    pub fn new() -> Self {
+        // VSCode window should always be the foreground window
+        let hwnd = unsafe { GetForegroundWindow() };
 
-// impl Ime {
-//     pub fn new() -> Self;
-//     pub fn desc(&self) -> &str;
-//     pub fn conversion(&self) -> &ConversionStatus;
+        Self::for_window(hwnd)
+    }
 
-//     // when we set conversion, we use self::handle to modify the Window's conversion.
-//     pub fn set_conversion(&self, cs: ConversionStatus);
+    pub fn conversion(&self) -> ConversionStatus {
+        let (mut c, mut s) = (0, 0);
 
-//     fn for_window(w: HWND) -> Self;
-// }
+        match unsafe { ImmGetConversionStatus(self.handle, &mut c,&mut s) } {
+            TRUE => c,
+            FALSE => panic!("Converting failed!"),
+            _ => unreachable!("Should not get value other than TRUE or FALSE"),
+        }
+    }
 
-// impl Drop for Ime {
-//     fn drop(&mut self) {
+    // when we set conversion, we use self::handle to modify the Window's conversion.
+    pub fn set_conversion(&mut self, cs: ConversionStatus) {
+        unimplemented!();
+    }
 
-//     }
-// }
+
+    fn for_window(win_handle: HWND) -> Self {
+        let himc = unsafe { ImmGetContext(win_handle) };
+
+        Self {
+            win: win_handle,
+            handle: himc,
+        }
+    }
+}
+
+impl Drop for Ime {
+    fn drop(&mut self) {
+        unsafe {
+            match ImmReleaseContext(self.win, self.handle) {
+                TRUE => println!("released!"),
+                FALSE => println!("Error while releasing!"),
+                _ => unreachable!("Should not get value other than TRUE or FALSE"),
+            }
+        }
+    }
+}

@@ -3,46 +3,47 @@
 //!
 //! ## Install
 //! ```
-//! cargo install im-select-rs
+//! cargo install ime-conversion-vim
 //! ```
 //!
 //! ## Manual
 //! This CLI command provides two basic usages.
-//! - To get current IME information, just run `im-select get`. return whill be in `{IME}.{conversion}` format
-//! - To switch to preferred IME and conversion, run like `im-select set {IME}.{conversion}`
+//! - To get current IME information, just run `ime-conversion-vim backup`. return whill be in `{conversion}` format
+//! - To switch to preferred IME and conversion, run like `ime-conversion-vim recover {conversion}`
 //!
 //! NOTES: these commands will only work on VSCodeVim config.
 //!
 //! [`im-select`]: https://github.com/daipeihust/im-select
 
-use structopt::StructOpt;
-
 mod ime;
+
+use structopt::StructOpt;
+use winapi::shared::minwindef::DWORD;
+use ime::Ime;
+
 
 #[derive(StructOpt)]
 #[structopt(about="A simple command that helps Chinese VSCodeVim users to switch IME")]
 enum Cmd {
-    Get,
-    Set {
+    Backup,
+    Recover {
         #[structopt()]
-        ImeDotConversion: String,
+        conversion: DWORD,
     },
 }
 
 fn main() {
     let cmd = Cmd::from_args();
-    // let mut ime = Ime::new();
+    let mut ime = Ime::new();
 
     match cmd {
-        Cmd::Get => {
-            // ime.name_and_conversion(),
+        Cmd::Backup => {
+            ime.conversion();
 
             println!("Get!");
         }
-        Cmd::Set { ImeDotConversion } => {
-            // parse iac string
-            // make it a setter chain?
-            // ime.set().set_conversion();
+        Cmd::Recover { conversion } => {
+            ime.set_conversion(conversion);
 
             println!("Set!");
         }
