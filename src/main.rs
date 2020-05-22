@@ -37,16 +37,7 @@ fn main() {
     let mut ime = Ime::new();
 
     match cmd {
-        Cmd::Backup => {
-            ime.conversion();
-
-            println!("Get!");
-        }
-        Cmd::Recover { conversion } => {
-            ime.set_conversion(conversion);
-
-            println!("Set!");
-        }
+        Cmd::Backup => println!("{}", ime.conversion()),
+        Cmd::Recover { conversion } => ime.set_conversion(conversion),
     }
-
 }

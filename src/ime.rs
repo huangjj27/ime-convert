@@ -1,5 +1,6 @@
 //! Ime wrapper for VSCode window, Which should be fore-window when calling this binary.
 
+use winapi::um::imm::ImmSetConversionStatus;
 use winapi::um::imm::ImmGetConversionStatus;
 use winapi::um::imm::ImmReleaseContext;
 use winapi::shared::windef::HWND;
@@ -42,7 +43,11 @@ impl Ime {
 
     // when we set conversion, we use self::handle to modify the Window's conversion.
     pub fn set_conversion(&mut self, cs: ConversionStatus) {
-        unimplemented!();
+        match unsafe { ImmSetConversionStatus(self.handle, cs, 0) } {
+            TRUE => return,
+            FALSE => panic!("Recovering failed!"),
+            _ => unreachable!("Should not get value other than TRUE or FALSE"),
+        }
     }
 
 
