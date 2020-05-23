@@ -17,13 +17,12 @@
 
 mod ime;
 
+use ime::Ime;
 use structopt::StructOpt;
 use winapi::shared::minwindef::DWORD;
-use ime::Ime;
-
 
 #[derive(StructOpt)]
-#[structopt(about="A simple command that helps Chinese VSCodeVim users to switch IME")]
+#[structopt(about = "A simple command that helps Chinese VSCodeVim users to switch IME")]
 enum Cmd {
     Backup,
     Recover {
