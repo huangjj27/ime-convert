@@ -51,7 +51,7 @@ impl Ime {
     }
 
     fn for_window(win_handle: HWND) -> Self {
-        // the handle will be allways a null pointer if we don't own that window.
+        // the handle will be always a null pointer if we don't own that window.
         let himc = unsafe { ImmGetContext(win_handle) };
         assert!(!himc.is_null(), "We should get imm for that window!");
 
