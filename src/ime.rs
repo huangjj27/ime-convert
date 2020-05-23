@@ -64,12 +64,10 @@ impl Ime {
 
 impl Drop for Ime {
     fn drop(&mut self) {
-        unsafe {
-            match ImmReleaseContext(self.win, self.handle) {
-                TRUE => println!("released!"),
-                FALSE => println!("Error while releasing!"),
-                _ => unreachable!("Should not get value other than TRUE or FALSE"),
-            }
+        match unsafe { ImmReleaseContext(self.win, self.handle) } {
+            TRUE => println!("released!"),
+            FALSE => println!("Error while releasing!"),
+            _ => unreachable!("Should not get value other than TRUE or FALSE"),
         }
     }
 }
