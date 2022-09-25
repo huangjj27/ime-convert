@@ -51,9 +51,10 @@ fn main() {
 }
 
 /// Ime wrapper for VSCode window, Which should be fore window when calling this binary.
-pub struct Ime {
+pub struct Ime<'a> {
     win: WindowHandle,
     handle: ImeHandle,
+    injected: BorrowedProcessModule<'a>,
     syringe: Syringe,
 }
 
@@ -73,10 +74,10 @@ impl Ime {
 
         let mut syringe = Syringe::for_process((target_proc));
 
-        ImeBuilder::new()
-            .with_syringe(syringe)
-            .for_window(foreground_win)
-            .build()
+        let injected = syringe.find_or_inject("im-conversion-vim")
+            .expect("检测注入时出现了异常！");
+
+        let remote
     }
 
     pub fn conversion(&self) -> u32 {
@@ -99,45 +100,6 @@ impl Ime {
             0 => panic!("Recovering failed!"),
             _ => return,
         }
-    }
-
-    fn for_window(win_handle: HWND) -> Self {
-        // the handle will be always a null pointer if we don't own that window.
-        let himc: HIMC = unsafe { ImmGetContext(win_handle) };
-        assert!(himc != 0, "We should get imm for that window!");
-
-        Self {
-            win: win_handle,
-            handle: himc,
-        }
-    }
-}
-
-struct ImeBuilder {
-    win: Option<WindowHandle>,
-    syringe: Option<Syringe>,
-}
-
-impl ImeBuilder {
-    fn new() -> Self {
-        Self {
-            win: None,
-            syringe: None,
-        }
-    }
-
-    fn with_syringe(&mut self, sy: Syringe) -> &mut Self {
-        self.syringe = Some(sy);
-        self
-    }
-
-    fn for_window(&mut self, win: WindowHandle) -> &mut Self {
-        self.win = Some(win);
-        self
-    }
-
-    fn build(&mut self) -> Ime {
-
     }
 }
 
