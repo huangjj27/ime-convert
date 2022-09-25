@@ -15,8 +15,20 @@
 //!
 //! [`im-select`]: https://github.com/daipeihust/im-select
 
-
+use windows_sys::Win32::Foundation::HWND;
+use windows_sys::Win32::Globalization::HIMC;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    GetForegroundWindow, GetWindowThreadProcessId
+};
+use windows_sys::Win32::UI::Input::Ime::{
+    ImmGetConversionStatus,
+    ImmSetConversionStatus,
+    ImmGetContext,
+    ImmReleaseContext,
+};
 use structopt::StructOpt;
+use dll_syringe::Syringe;
+use dll_syringe::process::{OwnedProcess, Process};
 
 #[derive(StructOpt)]
 #[structopt(about = "A simple command that helps Chinese VSCodeVim users to switch IME")]
@@ -38,22 +50,11 @@ fn main() {
     }
 }
 
-use windows_sys::Win32::Foundation::HWND;
-use windows_sys::Win32::Globalization::HIMC;
-use windows_sys::Win32::UI::Input::Ime::{
-    ImmGetConversionStatus,
-    ImmSetConversionStatus,
-    ImmGetContext,
-    ImmReleaseContext,
-};
-use windows_sys::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
-
-// use std::raw::CString;
-
 /// Ime wrapper for VSCode window, Which should be fore window when calling this binary.
 pub struct Ime {
     win: WindowHandle,
     handle: ImeHandle,
+    syringe: Syringe,
 }
 
 type WindowHandle = HWND;
@@ -62,9 +63,20 @@ type ImeHandle = HIMC;
 impl Ime {
     pub fn new() -> Self {
         // VSCode window should always be the foreground window
-        let hwnd = unsafe { GetForegroundWindow() };
+        let foreground_win: WindowHandle = unsafe { GetForegroundWindow() };
 
-        Self::for_window(hwnd)
+        let mut pid = 0;
+        let _tid = unsafe { GetWindowThreadProcessId(foreground_win, &mut pid) };
+
+        let target_proc = OwnedProcess::from_pid(pid)
+            .expect("获取目标进程失败！");
+
+        let mut syringe = Syringe::for_process((target_proc));
+
+        ImeBuilder::new()
+            .with_syringe(syringe)
+            .for_window(foreground_win)
+            .build()
     }
 
     pub fn conversion(&self) -> u32 {
@@ -98,6 +110,34 @@ impl Ime {
             win: win_handle,
             handle: himc,
         }
+    }
+}
+
+struct ImeBuilder {
+    win: Option<WindowHandle>,
+    syringe: Option<Syringe>,
+}
+
+impl ImeBuilder {
+    fn new() -> Self {
+        Self {
+            win: None,
+            syringe: None,
+        }
+    }
+
+    fn with_syringe(&mut self, sy: Syringe) -> &mut Self {
+        self.syringe = Some(sy);
+        self
+    }
+
+    fn for_window(&mut self, win: WindowHandle) -> &mut Self {
+        self.win = Some(win);
+        self
+    }
+
+    fn build(&mut self) -> Ime {
+
     }
 }
 
