@@ -1,5 +1,5 @@
 [package]
-name = "ime-conversion-vim"
+name = "im-conversion-monitor"
 version = "0.1.0"
 description = "a better implementation of im-select on windows!"
 authors = ["huangjj27 <huangjj.27@qq.com>"]
@@ -18,4 +18,6 @@ features = [
     "Win32_Globalization",
     "Win32_UI_Input_Ime",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_System_SystemServices",
+    "Win32_System_LibraryLoader",
 ]

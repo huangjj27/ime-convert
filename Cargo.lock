@@ -155,18 +155,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "im-conversion-monitor"
+version = "0.1.0"
+dependencies = [
+ "windows-sys",
+]
+
+[[package]]
 name = "im-convert"
 version = "0.1.0"
 dependencies = [
  "dll-syringe",
  "structopt",
-]
-
-[[package]]
-name = "ime-conversion-vim"
-version = "0.1.0"
-dependencies = [
- "windows-sys",
 ]
 
 [[package]]
