@@ -10,7 +10,12 @@
 //!
 //! [`im-select`]: https://github.com/daipeihust/im-select
 
-use windows_sys::Win32::Foundation::{HINSTANCE, BOOL};
+use once_cell::sync::Lazy;
+use windows_sys::Win32::Foundation::{
+    HINSTANCE, HANDLE, INVALID_HANDLE_VALUE,
+    BOOL
+};
+use windows_sys::core::PCSTR;
 
 use windows_sys::Win32::System::SystemServices::{
     DLL_PROCESS_ATTACH,
@@ -18,31 +23,70 @@ use windows_sys::Win32::System::SystemServices::{
 };
 use windows_sys::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
 
-type DWORD = u32;
-type LPVOID = *mut std::ffi::c_void;
+use std::thread::JoinHandle;
 
 // the `BOOL` type from windows-sys defines zero as `FALSE` and non-zero as `TRUE`.
 const FALSE: BOOL = 0i32;
+
+/// A lazy initialized static to hold the listener.
+static mut LISTENER: Lazy<Listener> = Lazy::new(Listener::spawn);
+
+/// A listener spawns a worker thread that holds a mailslot combined with the
+/// loading process which receives command from an outer executable. The worker
+/// thread
+struct Listener {
+    worker: Option<JoinHandle<BOOL>>,
+}
+
+impl Listener {
+    fn spawn() -> Self {
+        todo!("Get the foreground window and its process id(`pid`),
+            and create a mailslot based on the `pid`, and spawn
+            a new worker thread");
+    }
+
+    fn exit(&mut self) {
+        todo!("notify the worker thread to close the mailslot,
+            and wait the thread to exit.");
+    }
+}
 
 #[no_mangle]
 #[allow(non_snake_case)]
 extern "system" fn DllMain(
     hinstDLL: HINSTANCE,
-    fdwReason: DWORD,
-    _lpvReserved: LPVOID,
+    fdwReason: u32,
+    _lpvReserved: *mut std::ffi::c_void,
 ) -> BOOL {
-    let disable_result: BOOL = unsafe { DisableThreadLibraryCalls(hinstDLL) };
+    let disable_result: BOOL = unsafe {
+        // This dll doesn't care about what happens to the threads
+        // created by the process.
+        DisableThreadLibraryCalls(hinstDLL)
+    };
     if disable_result == FALSE {
         panic!("DisableThreadLibraryCalls failed!");
     }
 
     match fdwReason {
+        // Initialize a listener thread that provides a mailslot.
+        // the listener thread should be initialized once.
         DLL_PROCESS_ATTACH => {
-            // TODO: initialize a monitor thread that provides a mailslot.
-            // the monitor thread should be initialized once.
+            // SAFETY: the initialization is only happend once when
+            // `DLL_PROCESS_ATTACH`.
+            unsafe {
+                Lazy::force(&LISTENER);
+            }
         },
+
+        // the `LISTENER` must be initialized when `DLL_PROCESS_ATTACH`.
         DLL_PROCESS_DETACH => {
-            // TODO: notify the monitor thread to exit.
+            // SAFETY: the only mutable access of `LISTENER` is happenned
+            // when it's ready to call `Listener.exit`.
+            let listener: &mut Listener = unsafe {
+                Lazy::get_mut(&mut LISTENER)
+                    .expect("the `LISTENER` must be initialized!")
+            };
+            listener.exit();
         },
         _ => {
             unreachable!("This is a bug! unexpected fdwReason value: {fdwReason}");
