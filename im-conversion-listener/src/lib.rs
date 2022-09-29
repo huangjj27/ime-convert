@@ -12,21 +12,27 @@
 
 use once_cell::sync::Lazy;
 use windows_sys::Win32::Foundation::{
-    HINSTANCE, HANDLE, INVALID_HANDLE_VALUE,
+    HINSTANCE, HANDLE, HWND, INVALID_HANDLE_VALUE,
     BOOL
 };
-use windows_sys::core::PCSTR;
+use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 
 use windows_sys::Win32::System::SystemServices::{
     DLL_PROCESS_ATTACH,
     DLL_PROCESS_DETACH,
 };
 use windows_sys::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
+use windows_sys::Win32::System::Mailslots::CreateMailslotA;
+use windows_sys::Win32::UI::WindowsAndMessaging::{
+    GetForegroundWindow,
+    GetWindowThreadProcessId,
+};
 
 use std::thread::JoinHandle;
 
 // the `BOOL` type from windows-sys defines zero as `FALSE` and non-zero as `TRUE`.
 const FALSE: BOOL = 0i32;
+const TRUE: BOOL = 1i32;
 
 /// A lazy initialized static to hold the listener.
 static mut LISTENER: Lazy<Listener> = Lazy::new(Listener::spawn);
@@ -40,9 +46,34 @@ struct Listener {
 
 impl Listener {
     fn spawn() -> Self {
-        todo!("Get the foreground window and its process id(`pid`),
-            and create a mailslot based on the `pid`, and spawn
-            a new worker thread");
+        let handle = std::thread::spawn(|| {
+            // Get the foreground window and its process id(`pid`),
+            let h_wnd: HWND = unsafe { GetForegroundWindow() };
+            let mut pid = 0;
+            let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
+
+            // create a mailslot based on the `pid`
+            let mailslot_name = format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}");
+
+            let h_mailslot: HANDLE = unsafe {
+                CreateMailslotA(
+                    mailslot_name.as_ptr(),
+                    1,
+                    0,
+                    0 as *const SECURITY_ATTRIBUTES,
+                )
+            };
+
+            if (h_mailslot == INVALID_HANDLE_VALUE) {
+                panic!("mailslot for {pid:x} failed to create!");
+            }
+
+            TRUE
+        });
+
+        Self {
+            worker: Some(handle),
+        }
     }
 
     fn exit(&mut self) {
