@@ -50,7 +50,7 @@ static LISTENER: AtomicIsize = AtomicIsize::new(0);
 /// A lazy initialized static for mailslot
 static MAILSLOT: AtomicIsize = AtomicIsize::new(0);
 
-fn create_mailslot() -> HANDLE {
+fn create_mailslot() -> Result<HANDLE, ()> {
     // Get the foreground window and its process id(`pid`),
     let h_wnd: HWND = unsafe { GetForegroundWindow() };
     let mut pid = 0;
@@ -69,10 +69,10 @@ fn create_mailslot() -> HANDLE {
     };
 
     if h_mailslot == INVALID_HANDLE_VALUE {
-        dbg!("mailslot for failed to create!");
+        return Err(());
     }
 
-    h_mailslot
+    Ok(h_mailslot)
 }
 
 #[no_mangle]
@@ -95,7 +95,13 @@ extern "system" fn DllMain(
         // Initialize a listener thread that provides a mailslot.
         // the listener thread should be initialized once.
         DLL_PROCESS_ATTACH => {
-            let h_mailslot: HANDLE = create_mailslot();
+            let h_mailslot = match create_mailslot() {
+                Ok(hmail) => hmail,
+                Err(()) => {
+                    return FALSE;
+                }
+            };
+
             MAILSLOT.store(h_mailslot, Ordering::Release);
 
             let listener = std::thread::spawn(move || {
