@@ -14,6 +14,7 @@ use windows_sys::Win32::Foundation::{
     HINSTANCE, HANDLE, HWND, INVALID_HANDLE_VALUE,
     BOOL
 };
+use windows_sys::Win32::Foundation::CloseHandle;
 use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 
 use windows_sys::Win32::System::SystemServices::{
@@ -33,7 +34,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
 };
 
 use std::os::windows::prelude::IntoRawHandle;
-use std::sync::atomic::AtomicIsize;
+use std::sync::atomic::{ AtomicIsize, Ordering };
 
 // the `BOOL` type from windows-sys defines zero as `FALSE` and non-zero as `TRUE`.
 const FALSE: BOOL = 0i32;
@@ -152,10 +153,13 @@ extern "system" fn DllMain(
                     &mut written_bytes,
                     0 as *mut OVERLAPPED,
                 );
-            }
 
-            // TODO：join the LISTENER
+                let listener = LISTENER.swap(0, Ordering::AcqRel);
+
+                CloseHandle(listener);
+            }
         },
+
         _ => {
             unreachable!("This is a bug! unexpected fdwReason value: {fdwReason}");
         }
