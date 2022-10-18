@@ -37,6 +37,19 @@ const TRUE: BOOL = 1i32;
 /// A lazy initialized static to hold the listener.
 static mut LISTENER: Lazy<Listener> = Lazy::new(Listener::spawn);
 
+/// A lazy initialized static for mailslot identifier.
+static MAILSLOT: Lazy<String> = Lazy::new(identify_mailslot);
+
+fn identify_mailslot() -> String {
+    // Get the foreground window and its process id(`pid`),
+    let h_wnd: HWND = unsafe { GetForegroundWindow() };
+    let mut pid = 0;
+    let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
+
+    // create a mailslot based on the `pid`
+    format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}")
+}
+
 /// A listener spawns a worker thread that holds a mailslot combined with the
 /// loading process which receives command from an outer executable. The worker
 /// thread
@@ -47,25 +60,17 @@ struct Listener {
 impl Listener {
     fn spawn() -> Self {
         let handle = std::thread::spawn(|| {
-            // Get the foreground window and its process id(`pid`),
-            let h_wnd: HWND = unsafe { GetForegroundWindow() };
-            let mut pid = 0;
-            let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
-
-            // create a mailslot based on the `pid`
-            let mailslot_name = format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}");
-
             let h_mailslot: HANDLE = unsafe {
                 CreateMailslotA(
-                    mailslot_name.as_ptr(),
+                    MAILSLOT.as_ptr(),
                     1,
                     0,
                     0 as *const SECURITY_ATTRIBUTES,
                 )
             };
 
-            if (h_mailslot == INVALID_HANDLE_VALUE) {
-                panic!("mailslot for {pid:x} failed to create!");
+            if h_mailslot == INVALID_HANDLE_VALUE {
+                panic!("mailslot for failed to create!");
             }
 
             TRUE
