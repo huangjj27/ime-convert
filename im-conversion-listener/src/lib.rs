@@ -28,63 +28,60 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetWindowThreadProcessId,
 };
 
-use std::thread::JoinHandle;
+use std::sync::atomic::AtomicIsize;
 
 // the `BOOL` type from windows-sys defines zero as `FALSE` and non-zero as `TRUE`.
 const FALSE: BOOL = 0i32;
 const TRUE: BOOL = 1i32;
 
-/// A lazy initialized static to hold the listener.
-static mut LISTENER: Lazy<Listener> = Lazy::new(Listener::spawn);
+/// A lazy initialized static to hold the listener thread.
+static mut LISTENER: AtomicIsize = AtomicIsize::new(0);
 
 /// A lazy initialized static for mailslot identifier.
-static MAILSLOT: Lazy<String> = Lazy::new(identify_mailslot);
+static MAILSLOT: Lazy<HANDLE> = Lazy::new(create_mailslot);
 
-fn identify_mailslot() -> String {
+fn create_mailslot() -> HANDLE {
     // Get the foreground window and its process id(`pid`),
     let h_wnd: HWND = unsafe { GetForegroundWindow() };
     let mut pid = 0;
     let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
 
     // create a mailslot based on the `pid`
-    format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}")
-}
+    let mailslot_name = format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}");
 
-/// A listener spawns a worker thread that holds a mailslot combined with the
-/// loading process which receives command from an outer executable. The worker
-/// thread
-struct Listener {
-    worker: Option<JoinHandle<BOOL>>,
-}
+    let h_mailslot: HANDLE = unsafe {
+        CreateMailslotA(
+            mailslot_name.as_ptr(),
+            1,
+            0,
+            0 as *const SECURITY_ATTRIBUTES,
+        )
+    };
 
-impl Listener {
-    fn spawn() -> Self {
-        let handle = std::thread::spawn(|| {
-            let h_mailslot: HANDLE = unsafe {
-                CreateMailslotA(
-                    MAILSLOT.as_ptr(),
-                    1,
-                    0,
-                    0 as *const SECURITY_ATTRIBUTES,
-                )
-            };
-
-            if h_mailslot == INVALID_HANDLE_VALUE {
-                panic!("mailslot for failed to create!");
-            }
-
-            TRUE
-        });
-
-        Self {
-            worker: Some(handle),
-        }
+    if h_mailslot == INVALID_HANDLE_VALUE {
+        panic!("mailslot for failed to create!");
     }
 
-    fn exit(&mut self) {
-        todo!("notify the worker thread to close the mailslot,
-            and wait the thread to exit.");
-    }
+    h_mailslot
+}
+
+/// Spawn a thread to keep listening the MAILSLOT
+///
+/// ## SAFETY
+/// We assume this function is always called before `exit`
+fn spawn() {
+    let handle = std::thread::spawn(|| {
+
+    });
+}
+
+/// Exit the listener thread
+///
+/// ## SAFETY
+/// We assume this function is always called after we have initially `spawn`
+fn exit() {
+    todo!("notify the worker thread to close the mailslot,
+        and wait the thread to exit.");
 }
 
 #[no_mangle]
@@ -107,22 +104,12 @@ extern "system" fn DllMain(
         // Initialize a listener thread that provides a mailslot.
         // the listener thread should be initialized once.
         DLL_PROCESS_ATTACH => {
-            // SAFETY: the initialization is only happend once when
-            // `DLL_PROCESS_ATTACH`.
-            unsafe {
-                Lazy::force(&LISTENER);
-            }
+            spawn();
         },
 
         // the `LISTENER` must be initialized when `DLL_PROCESS_ATTACH`.
         DLL_PROCESS_DETACH => {
-            // SAFETY: the only mutable access of `LISTENER` is happenned
-            // when it's ready to call `Listener.exit`.
-            let listener: &mut Listener = unsafe {
-                Lazy::get_mut(&mut LISTENER)
-                    .expect("the `LISTENER` must be initialized!")
-            };
-            listener.exit();
+            exit();
         },
         _ => {
             unreachable!("This is a bug! unexpected fdwReason value: {fdwReason}");
