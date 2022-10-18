@@ -28,6 +28,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     WriteFile,
 };
 use windows_sys::Win32::System::IO::OVERLAPPED;
+use windows_sys::Win32::System::Threading::WaitForSingleObject;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow,
     GetWindowThreadProcessId,
@@ -43,6 +44,9 @@ const FALSE: BOOL = 0i32;
 // the message passed to our listener is one byte long.
 const MSG_LENGTH: u32 = 1;
 const EXIT: u8 = 0b1000;
+
+// wait a thread to exit for a second.
+const WAIT_TIMEOUT: u32 = 1000;
 
 /// A lazy initialized static to hold the listener thread.
 static LISTENER: AtomicIsize = AtomicIsize::new(0);
@@ -160,7 +164,7 @@ extern "system" fn DllMain(
                 );
 
                 let listener = LISTENER.swap(0, Ordering::AcqRel);
-
+                WaitForSingleObject(listener, WAIT_TIMEOUT);
                 CloseHandle(listener);
             }
         },
