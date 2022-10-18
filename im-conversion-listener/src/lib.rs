@@ -32,16 +32,16 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetWindowThreadProcessId,
 };
 
-use std::io::Read;
 use std::os::windows::prelude::IntoRawHandle;
 use std::sync::atomic::AtomicIsize;
 
 // the `BOOL` type from windows-sys defines zero as `FALSE` and non-zero as `TRUE`.
 const FALSE: BOOL = 0i32;
-const TRUE: BOOL = 1i32;
+// const TRUE: BOOL = 1i32;
 
 // the message passed to our listener is one byte long.
 const MSG_LENGTH: u32 = 1;
+const EXIT: u8 = 0b1000;
 
 /// A lazy initialized static to hold the listener thread.
 static mut LISTENER: AtomicIsize = AtomicIsize::new(0);
@@ -74,16 +74,6 @@ fn create_mailslot() -> HANDLE {
     h_mailslot
 }
 
-
-/// Exit the listener thread
-///
-/// ## SAFETY
-/// We assume this function is always called after we have initially `spawn`
-fn exit() {
-    todo!("notify the worker thread to close the mailslot,
-        and wait the thread to exit.");
-}
-
 #[no_mangle]
 #[allow(non_snake_case)]
 extern "system" fn DllMain(
@@ -108,7 +98,7 @@ extern "system" fn DllMain(
             unsafe {
                 // SAFETY: MAILSLOT will be defined here first so
                 // it will not be null.
-                *(MAILSLOT.get_mut()) = h_mailslot;
+                *MAILSLOT.get_mut() = h_mailslot;
             }
 
             let listener = std::thread::spawn(move || {
@@ -153,7 +143,18 @@ extern "system" fn DllMain(
 
         // the `LISTENER` must be initialized when `DLL_PROCESS_ATTACH`.
         DLL_PROCESS_DETACH => {
-            exit();
+            let mut written_bytes = 0;
+            unsafe {
+                WriteFile(
+                    *MAILSLOT.get_mut(),
+                    &EXIT as *const _ as _,
+                    MSG_LENGTH,
+                    &mut written_bytes,
+                    0 as *mut OVERLAPPED,
+                );
+            }
+
+            // TODO：join the LISTENER
         },
         _ => {
             unreachable!("This is a bug! unexpected fdwReason value: {fdwReason}");
