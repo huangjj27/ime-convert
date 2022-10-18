@@ -45,10 +45,10 @@ const MSG_LENGTH: u32 = 1;
 const EXIT: u8 = 0b1000;
 
 /// A lazy initialized static to hold the listener thread.
-static mut LISTENER: AtomicIsize = AtomicIsize::new(0);
+static LISTENER: AtomicIsize = AtomicIsize::new(0);
 
 /// A lazy initialized static for mailslot
-static mut MAILSLOT: AtomicIsize = AtomicIsize::new(0);
+static MAILSLOT: AtomicIsize = AtomicIsize::new(0);
 
 fn create_mailslot() -> HANDLE {
     // Get the foreground window and its process id(`pid`),
@@ -69,7 +69,7 @@ fn create_mailslot() -> HANDLE {
     };
 
     if h_mailslot == INVALID_HANDLE_VALUE {
-        panic!("mailslot for failed to create!");
+        dbg!("mailslot for failed to create!");
     }
 
     h_mailslot
@@ -88,7 +88,7 @@ extern "system" fn DllMain(
         DisableThreadLibraryCalls(hinstDLL)
     };
     if disable_result == FALSE {
-        panic!("DisableThreadLibraryCalls failed!");
+        dbg!("DisableThreadLibraryCalls failed!");
     }
 
     match fdwReason {
@@ -96,11 +96,7 @@ extern "system" fn DllMain(
         // the listener thread should be initialized once.
         DLL_PROCESS_ATTACH => {
             let h_mailslot: HANDLE = create_mailslot();
-            unsafe {
-                // SAFETY: MAILSLOT will be defined here first so
-                // it will not be null.
-                *MAILSLOT.get_mut() = h_mailslot;
-            }
+            MAILSLOT.store(h_mailslot, Ordering::Release);
 
             let listener = std::thread::spawn(move || {
                 let mut msg: u8 = 0;
@@ -119,8 +115,11 @@ extern "system" fn DllMain(
                     match msg {
                         // notified to exit
                         0b1000 => {
+                            // clear the global mailslot handle so that
+                            // we will not send an message again.
+                            let h_mail = MAILSLOT.swap(0, Ordering::AcqRel);
                             unsafe {
-                                CloseHandle(h_mailslot);
+                                CloseHandle(h_mail);
                             }
                             break;
                         },
@@ -132,25 +131,22 @@ extern "system" fn DllMain(
                         0b0010 => { },
 
                         m @ _ => {
-                            unreachable!("unexpected message {m} passed!");
+                            dbg!("unexpected message passed!");
                         }
                     }
                 }
             });
 
-            unsafe {
-                // SAFETY: MAILSLOT will be defined here first so
-                // it will not be null.
-                *(LISTENER.get_mut()) = listener.into_raw_handle() as isize;
-            }
+            LISTENER.store(listener.into_raw_handle() as isize, Ordering::Relaxed);
         },
 
         // the `LISTENER` must be initialized when `DLL_PROCESS_ATTACH`.
         DLL_PROCESS_DETACH => {
             let mut written_bytes = 0;
+            let mailslot = MAILSLOT.load(Ordering::Relaxed);
             unsafe {
                 WriteFile(
-                    *MAILSLOT.get_mut(),
+                    mailslot,
                     &EXIT as *const _ as _,
                     MSG_LENGTH,
                     &mut written_bytes,
@@ -164,7 +160,7 @@ extern "system" fn DllMain(
         },
 
         _ => {
-            unreachable!("This is a bug! unexpected fdwReason value: {fdwReason}");
+            dbg!("This is a bug! unexpected fdwReason value");
         }
     }
 
