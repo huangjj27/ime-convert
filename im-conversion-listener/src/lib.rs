@@ -10,7 +10,6 @@
 //!
 //! [`im-select`]: https://github.com/daipeihust/im-select
 
-use once_cell::sync::Lazy;
 use windows_sys::Win32::Foundation::{
     HINSTANCE, HANDLE, HWND, INVALID_HANDLE_VALUE,
     BOOL
@@ -23,22 +22,32 @@ use windows_sys::Win32::System::SystemServices::{
 };
 use windows_sys::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
 use windows_sys::Win32::System::Mailslots::CreateMailslotA;
+use windows_sys::Win32::Storage::FileSystem::{
+    ReadFile,
+    WriteFile,
+};
+use windows_sys::Win32::System::IO::OVERLAPPED;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow,
     GetWindowThreadProcessId,
 };
 
+use std::io::Read;
+use std::os::windows::prelude::IntoRawHandle;
 use std::sync::atomic::AtomicIsize;
 
 // the `BOOL` type from windows-sys defines zero as `FALSE` and non-zero as `TRUE`.
 const FALSE: BOOL = 0i32;
 const TRUE: BOOL = 1i32;
 
+// the message passed to our listener is one byte long.
+const MSG_LENGTH: u32 = 1;
+
 /// A lazy initialized static to hold the listener thread.
 static mut LISTENER: AtomicIsize = AtomicIsize::new(0);
 
-/// A lazy initialized static for mailslot identifier.
-static MAILSLOT: Lazy<HANDLE> = Lazy::new(create_mailslot);
+/// A lazy initialized static for mailslot
+static mut MAILSLOT: AtomicIsize = AtomicIsize::new(0);
 
 fn create_mailslot() -> HANDLE {
     // Get the foreground window and its process id(`pid`),
@@ -65,15 +74,6 @@ fn create_mailslot() -> HANDLE {
     h_mailslot
 }
 
-/// Spawn a thread to keep listening the MAILSLOT
-///
-/// ## SAFETY
-/// We assume this function is always called before `exit`
-fn spawn() {
-    let handle = std::thread::spawn(|| {
-
-    });
-}
 
 /// Exit the listener thread
 ///
@@ -104,7 +104,51 @@ extern "system" fn DllMain(
         // Initialize a listener thread that provides a mailslot.
         // the listener thread should be initialized once.
         DLL_PROCESS_ATTACH => {
-            spawn();
+            let h_mailslot: HANDLE = create_mailslot();
+            unsafe {
+                // SAFETY: MAILSLOT will be defined here first so
+                // it will not be null.
+                *(MAILSLOT.get_mut()) = h_mailslot;
+            }
+
+            let listener = std::thread::spawn(move || {
+                let mut msg: u8 = 0;
+                let mut read_bytes = 0;
+                loop {
+                    unsafe {
+                        ReadFile(
+                            h_mailslot,
+                            &mut msg as *mut _ as _,
+                            MSG_LENGTH,
+                            &mut read_bytes,
+                            0 as *mut OVERLAPPED,
+                        );
+                    }
+
+                    match msg {
+                        // notified to exit
+                        0b1000 => {
+                            break;
+                        },
+
+                        // to backup the im conve5sion status and switch to alpha mode
+                        0b0001 => { },
+
+                        // to recover the im conversion status.
+                        0b0010 => { },
+
+                        m @ _ => {
+                            unreachable!("unexpected message {m} passed!");
+                        }
+                    }
+                }
+            });
+
+            unsafe {
+                // SAFETY: MAILSLOT will be defined here first so
+                // it will not be null.
+                *(LISTENER.get_mut()) = listener.into_raw_handle() as isize;
+            }
         },
 
         // the `LISTENER` must be initialized when `DLL_PROCESS_ATTACH`.
