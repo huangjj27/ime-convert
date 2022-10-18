@@ -43,7 +43,6 @@ const FALSE: BOOL = 0i32;
 
 // the message passed to our listener is one byte long.
 const MSG_LENGTH: u32 = 1;
-const EXIT: u8 = 0b1000;
 
 // wait a thread to exit for a second.
 const WAIT_TIMEOUT: u32 = 1000;
@@ -53,6 +52,17 @@ static LISTENER: AtomicIsize = AtomicIsize::new(0);
 
 /// A lazy initialized static for mailslot
 static MAILSLOT: AtomicIsize = AtomicIsize::new(0);
+
+// Possible message that is designed to dealwith
+#[derive(Clone, Copy)]
+#[non_exhaustive]
+#[repr(u8)]
+enum Msg {
+    NeverUsed = 0b0000,
+    Backup = 0b0001,
+    Recover = 0b0010,
+    Exit = 0b1000,
+}
 
 fn create_mailslot() -> Result<HANDLE, ()> {
     // Get the foreground window and its process id(`pid`),
@@ -109,7 +119,7 @@ extern "system" fn DllMain(
             MAILSLOT.store(h_mailslot, Ordering::Release);
 
             let listener = std::thread::spawn(move || {
-                let mut msg: u8 = 0;
+                let mut msg = Msg::NeverUsed;
                 let mut read_bytes = 0;
                 loop {
                     unsafe {
@@ -124,7 +134,7 @@ extern "system" fn DllMain(
 
                     match msg {
                         // notified to exit
-                        0b1000 => {
+                        Msg::Exit => {
                             // clear the global mailslot handle so that
                             // we will not send an message again.
                             let h_mail = MAILSLOT.swap(0, Ordering::AcqRel);
@@ -135,10 +145,10 @@ extern "system" fn DllMain(
                         },
 
                         // to backup the im conve5sion status and switch to alpha mode
-                        0b0001 => { },
+                        Msg::Backup => { },
 
                         // to recover the im conversion status.
-                        0b0010 => { },
+                        Msg::Recover => { },
 
                         m @ _ => {
                             dbg!("unexpected message passed!");
@@ -153,11 +163,12 @@ extern "system" fn DllMain(
         // the `LISTENER` must be initialized when `DLL_PROCESS_ATTACH`.
         DLL_PROCESS_DETACH => {
             let mut written_bytes = 0;
+            let exit = Msg::Exit;
             let mailslot = MAILSLOT.load(Ordering::Relaxed);
             unsafe {
                 WriteFile(
                     mailslot,
-                    &EXIT as *const _ as _,
+                    &exit as *const _ as _,
                     MSG_LENGTH,
                     &mut written_bytes,
                     0 as *mut OVERLAPPED,
