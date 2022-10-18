@@ -119,6 +119,9 @@ extern "system" fn DllMain(
                     match msg {
                         // notified to exit
                         0b1000 => {
+                            unsafe {
+                                CloseHandle(h_mailslot);
+                            }
                             break;
                         },
 
