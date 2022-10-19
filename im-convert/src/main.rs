@@ -1,20 +1,21 @@
-//! Here is a reimplement of [`im-select`] in Rust, Which provides different APIs
-//! and only support Windows (MacOS will be supportted in some day).
+//! Here is a reimplement of [`im-select`] in Rust, Which is in fact a client
+//! to inject and send command to [`im-conversion-listener`], and only support
+//! Windows (MacOS will be supportted in some day).
 //!
 //! ## Install
 //! ```
-//! cargo install ime-conversion-vim
+//! cargo install im-convert
 //! ```
 //!
 //! ## Manual
 //! This CLI command provides two basic usages.
-//! - To get current IME information, just run `ime-conversion-vim backup`. return whill be in `{conversion}` format
-//! - To switch to preferred IME and conversion, run like `ime-conversion-vim recover {conversion}`
+//! - To get current IME information, just run `im-convert backup`.
+//! - To switch to preferred IME and conversion, run `im-convert recover`
 //!
 //! NOTES: these commands will only work on VSCodeVim config.
 //!
 //! [`im-select`]: https://github.com/daipeihust/im-select
-
+//! [`im-conversion-listener`]: https://github.com/huangjj27/ime-convert/tree/main/im-conversion-listener
 
 use structopt::StructOpt;
 
@@ -22,10 +23,7 @@ use structopt::StructOpt;
 #[structopt(about = "A simple command that helps Chinese VSCodeVim users to switch IME")]
 enum Cmd {
     Backup,
-    Recover {
-        #[structopt()]
-        conversion: u32,
-    },
+    Recover,
 }
 
 fn main() {
