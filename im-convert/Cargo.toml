@@ -10,3 +10,15 @@ license = "GPL-3.0-or-later"
 [dependencies]
 dll-syringe = "0.13.1"
 structopt = "0.3"
+
+[dependencies.windows-sys]
+version = "0.42.0"
+features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_System_SystemServices",
+    "Win32_System_Threading",
+    "Win32_System_IO",
+    "Win32_Storage_FileSystem",
+    "Win32_Security",
+]
