@@ -102,7 +102,7 @@ extern "system" fn DllMain(
         DisableThreadLibraryCalls(hinstDLL)
     };
     if disable_result == FALSE {
-        dbg!("DisableThreadLibraryCalls failed!");
+        todo!("DisableThreadLibraryCalls failed!");
     }
 
     match fdwReason {
@@ -151,7 +151,7 @@ extern "system" fn DllMain(
                         Msg::Recover => { },
 
                         m @ _ => {
-                            dbg!("unexpected message passed!");
+                            todo!("unexpected message passed!");
                         }
                     }
                 }
@@ -181,7 +181,8 @@ extern "system" fn DllMain(
         },
 
         _ => {
-            dbg!("This is a bug! unexpected fdwReason value");
+            // TODO: any other reason to call this dll should never happen.
+            return FALSE;
         }
     }
 
