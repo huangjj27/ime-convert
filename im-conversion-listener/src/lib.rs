@@ -36,7 +36,14 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow,
     GetWindowThreadProcessId,
 };
+use windows_sys::Win32::Globalization::HIMC;
+use windows_sys::Win32::UI::Input::Ime::{
+    ImmGetContext, ImmReleaseContext,
+    ImmGetConversionStatus, ImmSetConversionStatus,
+};
+use windows_sys::Win32::UI::Input::Ime::IME_CMODE_ALPHANUMERIC;
 
+use std::collections::HashMap;
 use std::os::windows::prelude::IntoRawHandle;
 use std::sync::atomic::{ AtomicIsize, Ordering };
 
@@ -124,6 +131,7 @@ extern "system" fn DllMain(
             let listener = std::thread::spawn(move || {
                 let mut msg = Msg::NeverUsed;
                 let mut read_bytes = 0;
+                let mut converions: HashMap<HWND, u32> = HashMap::new();
                 loop {
                     let read_res = unsafe {
                         ReadFile(
@@ -153,12 +161,82 @@ extern "system" fn DllMain(
                         },
 
                         // to backup the im conve5sion status and switch to alpha mode
-                        Msg::Backup => { },
+                        Msg::Backup => {
+                            // the ForegroundWindow of a process may change, so we have to
+                            // get the window first each time we are about to backup/recover
+                            // the IME conversion.
+                            let hwnd: HWND = unsafe { GetForegroundWindow() };
+                            let himc: HIMC = unsafe { ImmGetContext(hwnd) };
+
+                            let (mut conversion, mut sentence) = (0, 0);
+
+                            let get_res: BOOL = unsafe {
+                                ImmGetConversionStatus(
+                                    hwnd,
+                                    &mut conversion,
+                                    &mut sentence,
+                                )
+                            };
+
+                            if get_res == FALSE {
+                                todo!("failure for ImmGetConversionStatus need to be handled!");
+                            }
+
+                            converions
+                                .entry(hwnd)
+                                .or_insert(conversion);
+
+                            let set_res: BOOL = unsafe {
+                                ImmSetConversionStatus(
+                                    hwnd,
+                                    IME_CMODE_ALPHANUMERIC,
+                                    0
+                                )
+                            };
+
+                            if set_res == FALSE {
+                                todo!("failure for ImmSetConversionStatus need to be handled!");
+                            }
+
+                            let release_res: BOOL = unsafe {
+                                ImmReleaseContext(hwnd, himc)
+                            };
+
+                            if release_res == FALSE {
+                                todo!("failure for ImmReleaseContext need to be handled!");
+                            }
+                        },
 
                         // to recover the im conversion status.
-                        Msg::Recover => { },
+                        Msg::Recover => {
+                            let hwnd: HWND = unsafe { GetForegroundWindow() };
+                            let himc: HIMC = unsafe { ImmGetContext(hwnd) };
 
-                        m @ _ => {
+                            let conversion = *converions.get(&hwnd).unwrap();
+
+                            let set_res: BOOL = unsafe {
+                                ImmSetConversionStatus(
+                                    hwnd,
+                                    conversion,
+                                    0
+                                )
+                            };
+
+                            if set_res == FALSE {
+                                todo!("failure for ImmSetConversionStatus need to be handled!");
+                            }
+
+                            let release_res: BOOL = unsafe {
+                                ImmReleaseContext(hwnd, himc)
+                            };
+
+                            if release_res == FALSE {
+                                todo!("failure for ImmReleaseContext need to be handled!");
+                            }
+
+                        },
+
+                        _ => {
                             todo!("unexpected message passed!");
                         }
                     }
