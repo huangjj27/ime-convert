@@ -14,7 +14,10 @@ use windows_sys::Win32::Foundation::{
     HINSTANCE, HANDLE, HWND, INVALID_HANDLE_VALUE,
     BOOL
 };
-use windows_sys::Win32::Foundation::CloseHandle;
+use windows_sys::Win32::Foundation::{
+    GetLastError,
+    CloseHandle,
+};
 use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
 
 use windows_sys::Win32::System::SystemServices::{
@@ -122,14 +125,19 @@ extern "system" fn DllMain(
                 let mut msg = Msg::NeverUsed;
                 let mut read_bytes = 0;
                 loop {
-                    unsafe {
+                    let read_res = unsafe {
                         ReadFile(
                             h_mailslot,
                             &mut msg as *mut _ as _,
                             MSG_LENGTH,
                             &mut read_bytes,
                             0 as *mut OVERLAPPED,
-                        );
+                        )
+                    };
+
+                    if read_res == FALSE {
+                        let failure = unsafe { GetLastError() };
+                        todo!("need to handle the failure(code: {failure}) of the ReadFile");
                     }
 
                     match msg {
