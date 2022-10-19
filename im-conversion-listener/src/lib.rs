@@ -42,7 +42,7 @@ use std::sync::atomic::{ AtomicIsize, Ordering };
 
 // the `BOOL` type from windows-sys defines zero as `FALSE` and non-zero as `TRUE`.
 const FALSE: BOOL = 0i32;
-// const TRUE: BOOL = 1i32;
+const TRUE: BOOL = 1i32;
 
 // the message passed to our listener is one byte long.
 const MSG_LENGTH: u32 = 1;
@@ -194,5 +194,5 @@ extern "system" fn DllMain(
         }
     }
 
-    -1
+    return TRUE;
 }
