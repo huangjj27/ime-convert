@@ -11,8 +11,8 @@
 //! [`im-select`]: https://github.com/daipeihust/im-select
 
 use windows_sys::Win32::Foundation::{
-    HINSTANCE, HANDLE, HWND, INVALID_HANDLE_VALUE,
-    BOOL
+    HANDLE, HWND, INVALID_HANDLE_VALUE,
+    BOOL, TRUE, FALSE,
 };
 use windows_sys::Win32::Foundation::{
     GetLastError,
@@ -47,9 +47,12 @@ use std::collections::HashMap;
 use std::os::windows::prelude::IntoRawHandle;
 use std::sync::atomic::{ AtomicIsize, Ordering };
 
-// the `BOOL` type from windows-sys defines zero as `FALSE` and non-zero as `TRUE`.
-const FALSE: BOOL = 0i32;
-const TRUE: BOOL = 1i32;
+// see https://learn.microsoft.com/en-us/windows/win32/winprog/windows-data-types
+// A handle to an instance. This is the base address of the module in memory.
+// HMODULE and HINSTANCE are the same today, but represented different things in 16-bit Windows.
+// This type is declared in WinDef.h as follows:
+// `typedef HANDLE HINSTANCE;`
+type HINSTANCE = HANDLE;
 
 // the message passed to our listener is one byte long.
 const MSG_LENGTH: u32 = 1;
