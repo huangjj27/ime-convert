@@ -64,7 +64,6 @@ static LISTENER: AtomicIsize = AtomicIsize::new(0);
 static MAILSLOT: AtomicIsize = AtomicIsize::new(0);
 
 // Possible message that is designed to dealwith
-#[derive(Clone, Copy)]
 #[non_exhaustive]
 #[repr(u8)]
 enum Msg {
@@ -160,7 +159,7 @@ extern "system" fn DllMain(
                             break;
                         },
 
-                        // to backup the im conve5sion status and switch to alpha mode
+                        // to backup the im conversion status and switch to alpha mode
                         Msg::Backup => {
                             // the ForegroundWindow of a process may change, so we have to
                             // get the window first each time we are about to backup/recover
