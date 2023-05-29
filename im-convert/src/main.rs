@@ -18,8 +18,8 @@
 //! [`im-conversion-listener`]: https://github.com/huangjj27/ime-convert/tree/main/im-conversion-listener
 
 use windows_sys::Win32::Foundation::{
-    HINSTANCE, HANDLE, HWND, INVALID_HANDLE_VALUE,
-    BOOL
+    HANDLE, HWND, INVALID_HANDLE_VALUE,
+    BOOL, TRUE, FALSE,
 };
 use windows_sys::Win32::Foundation::{
     GetLastError,
@@ -33,6 +33,9 @@ use windows_sys::Win32::Storage::FileSystem::{
 };
 
 use structopt::StructOpt;
+use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+
+type HINSTANCE = HANDLE;
 
 #[derive(StructOpt)]
 #[structopt(about = "A simple command that helps Chinese VSCodeVim users to switch IME")]
@@ -41,25 +44,22 @@ enum Cmd {
     Recover,
 }
 
-fn get_mailslot() -> HANDLE {
+fn main() {
+    let cmd = Cmd::from_args();
+
+    // Inject or findout the dll.
     // Get the foreground window and its process id(`pid`),
     let h_wnd: HWND = unsafe { GetForegroundWindow() };
     let mut pid = 0;
     let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
 
+
     // create a mailslot based on the `pid`
     let mailslot = format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}");
-}
-
-
-fn main() {
-    let cmd = Cmd::from_args();
-
-    // Inject or findout the dll.
 
     // Send message.
-    match cmd {
-        Cmd::Backup => println!("{}", ime.conversion()),
-        Cmd::Recover { conversion } => ime.set_conversion(conversion),
-    }
+    // match cmd {
+    //     Cmd::Backup => println!("{}", ime.conversion()),
+    //     Cmd::Recover { conversion } => ime.set_conversion(conversion),
+    // }
 }
