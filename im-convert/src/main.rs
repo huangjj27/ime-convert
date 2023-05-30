@@ -34,6 +34,7 @@ use windows_sys::Win32::Storage::FileSystem::{
 
 use structopt::StructOpt;
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+use dll_syringe::{Syringe, process::OwnedProcess};
 
 type HINSTANCE = HANDLE;
 
@@ -52,12 +53,15 @@ fn main() {
     let h_wnd: HWND = unsafe { GetForegroundWindow() };
     let mut pid = 0;
     let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
-
-
-    // create a mailslot based on the `pid`
-    let mailslot = format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}");
+    let process = OwnedProcess::from_pid(pid)
+        .expect("Get the process of the foreground window failed!");
+    let syringe = Syringe::for_process(process);
+    syringe.find_or_inject("im_conversion_listener.dll")
+        .expect("injection failed");
 
     // Send message.
+    let mailslot = format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}");
+
     // match cmd {
     //     Cmd::Backup => println!("{}", ime.conversion()),
     //     Cmd::Recover { conversion } => ime.set_conversion(conversion),
