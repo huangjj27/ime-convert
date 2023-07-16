@@ -18,25 +18,24 @@ use windows_sys::Win32::Foundation::{
     GetLastError,
     CloseHandle,
 };
+use windows_sys::Win32::Globalization::HIMC;
 use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
-
-use windows_sys::Win32::System::SystemServices::{
-    DLL_PROCESS_ATTACH,
-    DLL_PROCESS_DETACH,
-};
-use windows_sys::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
-use windows_sys::Win32::System::Mailslots::CreateMailslotA;
 use windows_sys::Win32::Storage::FileSystem::{
     ReadFile,
     WriteFile,
 };
 use windows_sys::Win32::System::IO::OVERLAPPED;
+use windows_sys::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
+use windows_sys::Win32::System::Mailslots::CreateMailslotA;
+use windows_sys::Win32::System::SystemServices::{
+    DLL_PROCESS_ATTACH,
+    DLL_PROCESS_DETACH,
+};
 use windows_sys::Win32::System::Threading::WaitForSingleObject;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow,
     GetWindowThreadProcessId,
 };
-use windows_sys::Win32::Globalization::HIMC;
 use windows_sys::Win32::UI::Input::Ime::{
     ImmGetContext, ImmReleaseContext,
     ImmGetConversionStatus, ImmSetConversionStatus,
