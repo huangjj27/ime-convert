@@ -20,6 +20,7 @@
 use windows_sys::Win32::Foundation::{
     HANDLE, HWND, INVALID_HANDLE_VALUE,
     BOOL, TRUE, FALSE,
+    GENERIC_WRITE,
 };
 use windows_sys::Win32::Foundation::{
     GetLastError,
@@ -32,6 +33,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     WriteFile,
     CreateFileA,
     OPEN_EXISTING,
+    FILE_ATTRIBUTE_NORMAL,
 };
 use windows_sys::Win32::System::SystemServices::MAILSLOT_WAIT_FOREVER;
 
@@ -39,13 +41,22 @@ use structopt::StructOpt;
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
 use dll_syringe::{Syringe, process::OwnedProcess};
 
-type HINSTANCE = HANDLE;
-
+// the message passed to our listener is one byte long.
+const MSG_LENGTH: u32 = 1;
 #[derive(StructOpt)]
 #[structopt(about = "A simple command that helps Chinese VSCodeVim users to switch IME")]
 enum Cmd {
     Backup,
     Recover,
+}
+
+#[non_exhaustive]
+#[repr(u8)]
+enum Msg {
+    NeverUsed = 0b0000,
+    Backup = 0b0001,
+    Recover = 0b0010,
+    Exit = 0b1000,
 }
 
 fn main() {
@@ -62,9 +73,50 @@ fn main() {
     syringe.find_or_inject("im_conversion_listener.dll")
         .expect("injection failed");
 
+    let mailslot = format!("\\\\.\\mailslot\\im_conversion_listener_{pid:x}\0");
+    let h_mailslot = unsafe {
+        CreateFileA(
+            mailslot,
+            GENERIC_WRITE,
+            0,  // zero means that only current process can operate the file.
+            std::ptr::null() as *const SECURITY_ATTRIBUTES,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            std::ptr::null(),
+        )
+    };
+
     // Send message.
-    // match cmd {
-    //     Cmd::Backup => println!("{}", ime.conversion()),
-    //     Cmd::Recover { conversion } => ime.set_conversion(conversion),
-    // }
+    let mut written_bytes = 0;
+    match cmd {
+        Cmd::Backup => {
+            let backup = Msg::Backup;
+            unsafe {
+                WriteFile(
+                    h_mailslot,
+                    &backup as *const _ as _,
+                    MSG_LENGTH,
+                    &mut written_bytes,
+                    std::ptr::null_mut() as *mut OVERLAPPED,
+                );
+            }
+        },
+
+        Cmd::Recover => {
+            let recover = Msg::Recover;
+            unsafe {
+                WriteFile(
+                    h_mailslot,
+                    &recover as *const _ as _,
+                    MSG_LENGTH,
+                    &mut written_bytes,
+                    std::ptr::null_mut() as *mut OVERLAPPED,
+                );
+            }
+        }
+    }
+
+    unsafe {
+        CloseHandle(h_mail);
+    }
 }

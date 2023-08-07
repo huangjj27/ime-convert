@@ -89,7 +89,7 @@ fn create_mailslot() -> Result<HANDLE, ()> {
     let h_mailslot: HANDLE = unsafe {
         CreateMailslotA(
             mailslot_name.as_ptr(),
-            1,
+            MSG_LENGTH,
             MAILSLOT_WAIT_FOREVER,
             std::ptr::null() as *const SECURITY_ATTRIBUTES,
         )
@@ -142,7 +142,7 @@ extern "system" fn DllMain(
                             &mut msg as *mut _ as _,
                             MSG_LENGTH,
                             &mut read_bytes,
-                            0 as *mut OVERLAPPED,
+                            std::ptr::null_mut() as *mut OVERLAPPED,
                         )
                     };
 
@@ -260,7 +260,7 @@ extern "system" fn DllMain(
                     &exit as *const _ as _,
                     MSG_LENGTH,
                     &mut written_bytes,
-                    0 as *mut OVERLAPPED,
+                    std::ptr::null_mut() as *mut OVERLAPPED,
                 );
 
                 let listener = LISTENER.swap(0, Ordering::AcqRel);
