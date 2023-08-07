@@ -131,125 +131,125 @@ extern "system" fn DllMain(
 
             MAILSLOT.store(h_mailslot, Ordering::Release);
 
-        //     let listener = std::thread::spawn(move || {
-        //         let mut msg = Msg::NeverUsed;
-        //         let mut read_bytes = 0;
-        //         let mut converions: HashMap<HWND, u32> = HashMap::new();
-        //         loop {
-        //             let read_res = unsafe {
-        //                 ReadFile(
-        //                     h_mailslot,
-        //                     &mut msg as *mut _ as _,
-        //                     MSG_LENGTH,
-        //                     &mut read_bytes,
-        //                     0 as *mut OVERLAPPED,
-        //                 )
-        //             };
+            let listener = std::thread::spawn(move || {
+                let mut msg = Msg::NeverUsed;
+                let mut read_bytes = 0;
+                let mut converions: HashMap<HWND, u32> = HashMap::new();
+                loop {
+                    let read_res = unsafe {
+                        ReadFile(
+                            h_mailslot,
+                            &mut msg as *mut _ as _,
+                            MSG_LENGTH,
+                            &mut read_bytes,
+                            0 as *mut OVERLAPPED,
+                        )
+                    };
 
-        //             if read_res == FALSE {
-        //                 let failure = unsafe { GetLastError() };
-        //                 todo!("need to handle the failure(code: {failure}) of the ReadFile");
-        //             }
+                    if read_res == FALSE {
+                        let failure = unsafe { GetLastError() };
+                        todo!("need to handle the failure(code: {failure}) of the ReadFile");
+                    }
 
-        //             match msg {
-        //                 // notified to exit
-        //                 Msg::Exit => {
-        //                     // clear the global mailslot handle so that
-        //                     // we will not send an message again.
-        //                     let h_mail = MAILSLOT.swap(0, Ordering::AcqRel);
-        //                     unsafe {
-        //                         CloseHandle(h_mail);
-        //                     }
-        //                     break;
-        //                 },
+                    match msg {
+                        // notified to exit
+                        Msg::Exit => {
+                            // clear the global mailslot handle so that
+                            // we will not send an message again.
+                            let h_mail = MAILSLOT.swap(0, Ordering::AcqRel);
+                            unsafe {
+                                CloseHandle(h_mail);
+                            }
+                            break;
+                        },
 
-        //                 // to backup the im conversion status and switch to alpha mode
-        //                 Msg::Backup => {
-        //                     // the ForegroundWindow of a process may change, so we have to
-        //                     // get the window first each time we are about to backup/recover
-        //                     // the IME conversion.
-        //                     let hwnd: HWND = unsafe { GetForegroundWindow() };
-        //                     let himc: HIMC = unsafe { ImmGetContext(hwnd) };
+                        // to backup the im conversion status and switch to alpha mode
+                        Msg::Backup => {
+                            // the ForegroundWindow of a process may change, so we have to
+                            // get the window first each time we are about to backup/recover
+                            // the IME conversion.
+                            let hwnd: HWND = unsafe { GetForegroundWindow() };
+                            let himc: HIMC = unsafe { ImmGetContext(hwnd) };
 
-        //                     let (mut conversion, mut sentence) = (0, 0);
+                            let (mut conversion, mut sentence) = (0, 0);
 
-        //                     let get_res: BOOL = unsafe {
-        //                         ImmGetConversionStatus(
-        //                             hwnd,
-        //                             &mut conversion,
-        //                             &mut sentence,
-        //                         )
-        //                     };
+                            let get_res: BOOL = unsafe {
+                                ImmGetConversionStatus(
+                                    hwnd,
+                                    &mut conversion,
+                                    &mut sentence,
+                                )
+                            };
 
-        //                     if get_res == FALSE {
-        //                         todo!("failure for ImmGetConversionStatus need to be handled!");
-        //                     }
+                            if get_res == FALSE {
+                                todo!("failure for ImmGetConversionStatus need to be handled!");
+                            }
 
-        //                     converions
-        //                         .entry(hwnd)
-        //                         .or_insert(conversion);
+                            converions
+                                .entry(hwnd)
+                                .or_insert(conversion);
 
-        //                     let set_res: BOOL = unsafe {
-        //                         ImmSetConversionStatus(
-        //                             hwnd,
-        //                             IME_CMODE_ALPHANUMERIC,
-        //                             0
-        //                         )
-        //                     };
+                            let set_res: BOOL = unsafe {
+                                ImmSetConversionStatus(
+                                    hwnd,
+                                    IME_CMODE_ALPHANUMERIC,
+                                    0
+                                )
+                            };
 
-        //                     if set_res == FALSE {
-        //                         todo!("failure for ImmSetConversionStatus need to be handled!");
-        //                     }
+                            if set_res == FALSE {
+                                todo!("failure for ImmSetConversionStatus need to be handled!");
+                            }
 
-        //                     let release_res: BOOL = unsafe {
-        //                         ImmReleaseContext(hwnd, himc)
-        //                     };
+                            let release_res: BOOL = unsafe {
+                                ImmReleaseContext(hwnd, himc)
+                            };
 
-        //                     if release_res == FALSE {
-        //                         todo!("failure for ImmReleaseContext need to be handled!");
-        //                     }
-        //                 },
+                            if release_res == FALSE {
+                                todo!("failure for ImmReleaseContext need to be handled!");
+                            }
+                        },
 
-        //                 // to recover the im conversion status.
-        //                 Msg::Recover => {
-        //                     let hwnd: HWND = unsafe { GetForegroundWindow() };
-        //                     let himc: HIMC = unsafe { ImmGetContext(hwnd) };
+                        // to recover the im conversion status.
+                        Msg::Recover => {
+                            let hwnd: HWND = unsafe { GetForegroundWindow() };
+                            let himc: HIMC = unsafe { ImmGetContext(hwnd) };
 
-        //                     let conversion = *converions.get(&hwnd).unwrap();
+                            let conversion = *converions.get(&hwnd).unwrap();
 
-        //                     let set_res: BOOL = unsafe {
-        //                         ImmSetConversionStatus(
-        //                             hwnd,
-        //                             conversion,
-        //                             0
-        //                         )
-        //                     };
+                            let set_res: BOOL = unsafe {
+                                ImmSetConversionStatus(
+                                    hwnd,
+                                    conversion,
+                                    0
+                                )
+                            };
 
-        //                     if set_res == FALSE {
-        //                         todo!("failure for ImmSetConversionStatus need to be handled!");
-        //                     }
+                            if set_res == FALSE {
+                                todo!("failure for ImmSetConversionStatus need to be handled!");
+                            }
 
-        //                     let release_res: BOOL = unsafe {
-        //                         ImmReleaseContext(hwnd, himc)
-        //                     };
+                            let release_res: BOOL = unsafe {
+                                ImmReleaseContext(hwnd, himc)
+                            };
 
-        //                     if release_res == FALSE {
-        //                         todo!("failure for ImmReleaseContext need to be handled!");
-        //                     }
+                            if release_res == FALSE {
+                                todo!("failure for ImmReleaseContext need to be handled!");
+                            }
 
-        //                 },
+                        },
 
-        //                 _ => {
-        //                     todo!("unexpected message passed!");
-        //                 }
-        //             }
-        //         }
-        //     });
+                        _ => {
+                            todo!("unexpected message passed!");
+                        }
+                    }
+                }
+            });
 
-        //     LISTENER.store(listener.into_raw_handle() as isize, Ordering::Relaxed);
+            LISTENER.store(listener.into_raw_handle() as isize, Ordering::Relaxed);
         },
 
-        // // the `LISTENER` must be initialized when `DLL_PROCESS_ATTACH`.
+        // the `LISTENER` must be initialized when `DLL_PROCESS_ATTACH`.
         DLL_PROCESS_DETACH => {
             let mut written_bytes = 0;
             let exit = Msg::Exit;
