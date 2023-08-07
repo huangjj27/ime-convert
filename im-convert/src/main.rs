@@ -27,6 +27,7 @@ use windows_sys::Win32::Foundation::{
     CloseHandle,
 };
 use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
+use windows_sys::Win32::System::IO::OVERLAPPED;
 use windows_sys::Win32::System::Mailslots::CreateMailslotA;
 use windows_sys::Win32::System::Threading::WaitForSingleObject;
 use windows_sys::Win32::Storage::FileSystem::{
@@ -36,6 +37,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     FILE_ATTRIBUTE_NORMAL,
 };
 use windows_sys::Win32::System::SystemServices::MAILSLOT_WAIT_FOREVER;
+
 
 use structopt::StructOpt;
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
@@ -69,20 +71,20 @@ fn main() {
     let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
     let process = OwnedProcess::from_pid(pid)
         .expect("Get the process of the foreground window failed!");
-    let syringe = Syringe::for_process(process);
-    syringe.find_or_inject("im_conversion_listener.dll")
-        .expect("injection failed");
+    // let syringe = Syringe::for_process(process);
+    // syringe.find_or_inject("im_conversion_listener.dll")
+    //     .expect("injection failed");
 
     let mailslot = format!("\\\\.\\mailslot\\im_conversion_listener_{pid:x}\0");
     let h_mailslot = unsafe {
         CreateFileA(
-            mailslot,
+            mailslot.as_ptr(),
             GENERIC_WRITE,
             0,  // zero means that only current process can operate the file.
             std::ptr::null() as *const SECURITY_ATTRIBUTES,
             OPEN_EXISTING,
             FILE_ATTRIBUTE_NORMAL,
-            std::ptr::null(),
+            0,
         )
     };
 
@@ -117,6 +119,6 @@ fn main() {
     }
 
     unsafe {
-        CloseHandle(h_mail);
+        CloseHandle(h_mailslot);
     }
 }
