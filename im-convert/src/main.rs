@@ -25,6 +25,8 @@ use windows_sys::Win32::Foundation::{
     GetLastError,
     CloseHandle,
 };
+use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
+use windows_sys::Win32::System::Mailslots::CreateMailslotA;
 use windows_sys::Win32::System::Threading::WaitForSingleObject;
 use windows_sys::Win32::Storage::FileSystem::{
     WriteFile,
@@ -55,12 +57,25 @@ fn main() {
     let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
     let process = OwnedProcess::from_pid(pid)
         .expect("Get the process of the foreground window failed!");
-    let syringe = Syringe::for_process(process);
-    syringe.find_or_inject("im_conversion_listener.dll")
-        .expect("injection failed");
+    // let syringe = Syringe::for_process(process);
+    // syringe.find_or_inject("im_conversion_listener.dll")
+    //     .expect("injection failed");
 
     // Send message.
     let mailslot = format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}");
+    let h_mailslot: HANDLE = unsafe {
+        CreateMailslotA(
+            mailslot.as_ptr(),
+            1,
+            0,
+            0 as *const SECURITY_ATTRIBUTES,
+        )
+    };
+
+    println!("h_mailslot: {h_mailslot:x}");
+    if h_mailslot == INVALID_HANDLE_VALUE {
+        println!("INVALID_HANDLE_VALUE!");
+    }
 
     // match cmd {
     //     Cmd::Backup => println!("{}", ime.conversion()),
