@@ -33,6 +33,7 @@ use windows_sys::Win32::Storage::FileSystem::{
     CreateFileA,
     OPEN_EXISTING,
 };
+use windows_sys::Win32::System::SystemServices::MAILSLOT_WAIT_FOREVER;
 
 use structopt::StructOpt;
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
@@ -57,26 +58,11 @@ fn main() {
     let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
     let process = OwnedProcess::from_pid(pid)
         .expect("Get the process of the foreground window failed!");
-    // let syringe = Syringe::for_process(process);
-    // syringe.find_or_inject("im_conversion_listener.dll")
-    //     .expect("injection failed");
+    let syringe = Syringe::for_process(process);
+    syringe.find_or_inject("im_conversion_listener.dll")
+        .expect("injection failed");
 
     // Send message.
-    let mailslot = format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}");
-    let h_mailslot: HANDLE = unsafe {
-        CreateMailslotA(
-            mailslot.as_ptr(),
-            1,
-            0,
-            0 as *const SECURITY_ATTRIBUTES,
-        )
-    };
-
-    println!("h_mailslot: {h_mailslot:x}");
-    if h_mailslot == INVALID_HANDLE_VALUE {
-        println!("INVALID_HANDLE_VALUE!");
-    }
-
     // match cmd {
     //     Cmd::Backup => println!("{}", ime.conversion()),
     //     Cmd::Recover { conversion } => ime.set_conversion(conversion),

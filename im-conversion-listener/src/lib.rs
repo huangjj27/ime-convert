@@ -31,6 +31,7 @@ use windows_sys::Win32::System::Mailslots::CreateMailslotA;
 use windows_sys::Win32::System::SystemServices::{
     DLL_PROCESS_ATTACH,
     DLL_PROCESS_DETACH,
+    MAILSLOT_WAIT_FOREVER,
 };
 use windows_sys::Win32::System::Threading::WaitForSingleObject;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -83,14 +84,14 @@ fn create_mailslot() -> Result<HANDLE, ()> {
     let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
 
     // create a mailslot based on the `pid`
-    let mailslot_name = format!("\\\\.\\mailsot\\im_conversion_listener_{pid:x}");
+    let mailslot_name = format!("\\\\.\\mailslot\\im_conversion_listener_{pid:x}\0");
 
     let h_mailslot: HANDLE = unsafe {
         CreateMailslotA(
             mailslot_name.as_ptr(),
             1,
-            0,
-            0 as *const SECURITY_ATTRIBUTES,
+            MAILSLOT_WAIT_FOREVER,
+            std::ptr::null() as *const SECURITY_ATTRIBUTES,
         )
     };
 
