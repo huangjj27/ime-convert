@@ -11,95 +11,120 @@
 //! [`im-select`]: https://github.com/daipeihust/im-select
 
 use windows::Win32::Foundation::{
-    HANDLE, HWND, INVALID_HANDLE_VALUE,
+    HINSTANCE, HWND,
     BOOL, TRUE, FALSE,
 };
-use windows::Win32::Foundation::{
-    GetLastError,
-    CloseHandle,
-};
 use windows::Win32::Globalization::HIMC;
-use windows::Win32::Security::SECURITY_ATTRIBUTES;
-use windows::Win32::Storage::FileSystem::{
-    ReadFile,
-    WriteFile,
-};
-use windows::Win32::System::Diagnostics::Debug::OutputDebugStringA;
-use windows::Win32::System::IO::OVERLAPPED;
 use windows::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
-use windows::Win32::System::Mailslots::CreateMailslotA;
 use windows::Win32::System::SystemServices::{
     DLL_PROCESS_ATTACH,
     DLL_PROCESS_DETACH,
-    MAILSLOT_WAIT_FOREVER,
 };
-use windows::Win32::System::Threading::WaitForSingleObject;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow,
     GetWindowThreadProcessId,
 };
 use windows::Win32::UI::Input::Ime::{
     ImmGetContext, ImmReleaseContext,
-    ImmGetConversionStatus, ImmSetConversionStatus,
+    ImmGetConversionStatus, ImmSetConversionStatus, IME_CONVERSION_MODE, IME_SMODE_AUTOMATIC,
 };
 use windows::Win32::UI::Input::Ime::IME_CMODE_ALPHANUMERIC;
 
 use std::collections::HashMap;
-use std::os::windows::prelude::IntoRawHandle;
-use std::sync::atomic::{ AtomicIsize, Ordering };
+use std::sync::{ Arc, Mutex };
 
-// see https://learn.microsoft.com/en-us/windows/win32/winprog/windows-data-types
-// A handle to an instance. This is the base address of the module in memory.
-// HMODULE and HINSTANCE are the same today, but represented different things in 16-bit Windows.
-// This type is declared in WinDef.h as follows:
-// `typedef HANDLE HINSTANCE;`
-type HINSTANCE = HANDLE;
+// the key `isize` is the inner of HWND
+const CONVERSIONS: Arc<Mutex<HashMap<isize, IME_CONVERSION_MODE>>> = Arc::new(Mutex::new(HashMap::new()));
 
-// the message passed to our listener is one byte long.
-const MSG_LENGTH: u32 = 1;
-
-// wait a thread to exit for a second.
-const WAIT_TIMEOUT: u32 = 1000;
-
-/// A lazy initialized static to hold the listener thread.
-static LISTENER: AtomicIsize = AtomicIsize::new(0);
-
-/// A lazy initialized static for mailslot
-static MAILSLOT: AtomicIsize = AtomicIsize::new(0);
-
-// Possible message that is designed to dealwith
-#[non_exhaustive]
-#[repr(u8)]
-enum Msg {
-    NeverUsed = 0b0000,
-    Backup = 0b0001,
-    Recover = 0b0010,
-    Exit = 0b1000,
-}
-
-fn create_mailslot() -> Result<HANDLE, ()> {
+fn check_injected_process() -> u32 {
     // Get the foreground window and its process id(`pid`),
     let h_wnd: HWND = unsafe { GetForegroundWindow() };
     let mut pid = 0;
-    let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
+    let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, Some(&mut pid)) };
 
-    // create a mailslot based on the `pid`
-    let mailslot_name = format!("\\\\.\\mailslot\\im_conversion_listener_{pid:x}\0");
+    pid
+}
 
-    let h_mailslot: HANDLE = unsafe {
-        CreateMailslotA(
-            mailslot_name.as_ptr(),
-            MSG_LENGTH,
-            MAILSLOT_WAIT_FOREVER,
-            std::ptr::null() as *const SECURITY_ATTRIBUTES,
+/// Backup the IME conversion and set the convertion to `IME_CMODE_ALPHANUMERIC`
+extern "system" fn backup() {
+    // the ForegroundWindow of a process may change, so we have to
+    // get the window first each time we are about to backup/recover
+    // the IME conversion.
+    let hwnd: HWND = unsafe { GetForegroundWindow() };
+    let himc: HIMC = unsafe { ImmGetContext(hwnd) };
+
+    let mut conversion = IME_CMODE_ALPHANUMERIC;
+
+    let get_res: BOOL = unsafe {
+        ImmGetConversionStatus(
+            himc,
+            Some(&mut conversion),
+            None,
         )
     };
 
-    if h_mailslot == INVALID_HANDLE_VALUE {
-        return Err(());
+    if get_res == FALSE {
+        todo!("failure for ImmGetConversionStatus need to be handled!");
     }
 
-    Ok(h_mailslot)
+    let mut conversions = CONVERSIONS.clone().lock()
+        .expect("Get conversions failed!");
+
+    // hack: `HWND` doesn't satisfy `HWND: hash`, but the isize value behind it does.
+    (*conversions)
+        .entry(hwnd.0)
+        .or_insert(conversion);
+
+    let set_res: BOOL = unsafe {
+        ImmSetConversionStatus(
+            himc,
+            IME_CMODE_ALPHANUMERIC,
+            IME_SMODE_AUTOMATIC,
+        )
+    };
+
+    if set_res == FALSE {
+        todo!("failure for ImmSetConversionStatus need to be handled!");
+    }
+
+    let release_res: BOOL = unsafe {
+        ImmReleaseContext(hwnd, himc)
+    };
+
+    if release_res == FALSE {
+        todo!("failure for ImmReleaseContext need to be handled!");
+    }
+}
+
+/// recover the IME conversion from the recorded CONVERSIONS map.
+fn recover() {
+    let hwnd: HWND = unsafe { GetForegroundWindow() };
+    let himc: HIMC = unsafe { ImmGetContext(hwnd) };
+
+    let conversions = CONVERSIONS.clone().lock()
+        .expect("Get conversions failed!");
+
+    let conversion = (*conversions).get(&hwnd.0).unwrap();
+
+    let set_res: BOOL = unsafe {
+        ImmSetConversionStatus(
+            himc,
+            *conversion,
+            IME_SMODE_AUTOMATIC,
+        )
+    };
+
+    if set_res == FALSE {
+        todo!("failure for ImmSetConversionStatus need to be handled!");
+    }
+
+    let release_res: BOOL = unsafe {
+        ImmReleaseContext(hwnd, himc)
+    };
+
+    if release_res == FALSE {
+        todo!("failure for ImmReleaseContext need to be handled!");
+    }
 }
 
 #[no_mangle]
@@ -109,165 +134,19 @@ extern "system" fn DllMain(
     fdwReason: u32,
     _lpvReserved: *mut std::ffi::c_void,
 ) -> BOOL {
-    let disable_result: BOOL = unsafe {
+    let disable_result = unsafe {
         // This dll doesn't care about what happens to the threads
         // created by the process.
         DisableThreadLibraryCalls(hinstDLL)
     };
-    if disable_result == FALSE {
-        todo!("DisableThreadLibraryCalls failed!");
+    if let Err(_) = disable_result {
+        // todo!("DisableThreadLibraryCalls failed!");
+        return FALSE;
     }
 
     match fdwReason {
-        // Initialize a listener thread that provides a mailslot.
-        // the listener thread should be initialized once.
-        DLL_PROCESS_ATTACH => {
-            let h_mailslot = match create_mailslot() {
-                Ok(hmail) => hmail,
-                Err(()) => {
-                    return FALSE;
-                }
-            };
-
-            MAILSLOT.store(h_mailslot, Ordering::Release);
-
-            let listener = std::thread::spawn(move || {
-                let mut msg = Msg::NeverUsed;
-                let mut read_bytes = 0;
-                let mut converions: HashMap<HWND, u32> = HashMap::new();
-                loop {
-                    let read_res = unsafe {
-                        ReadFile(
-                            h_mailslot,
-                            &mut msg as *mut _ as _,
-                            MSG_LENGTH,
-                            &mut read_bytes,
-                            std::ptr::null_mut() as *mut OVERLAPPED,
-                        )
-                    };
-
-                    if read_res == FALSE {
-                        let failure = unsafe { GetLastError() };
-                        todo!("need to handle the failure(code: {failure}) of the ReadFile");
-                    }
-
-                    match msg {
-                        // notified to exit
-                        Msg::Exit => {
-                            // clear the global mailslot handle so that
-                            // we will not send an message again.
-                            let h_mail = MAILSLOT.swap(0, Ordering::AcqRel);
-                            unsafe {
-                                CloseHandle(h_mail);
-                            }
-                            break;
-                        },
-
-                        // to backup the im conversion status and switch to alpha mode
-                        Msg::Backup => {
-                            // the ForegroundWindow of a process may change, so we have to
-                            // get the window first each time we are about to backup/recover
-                            // the IME conversion.
-                            let hwnd: HWND = unsafe { GetForegroundWindow() };
-                            let himc: HIMC = unsafe { ImmGetContext(hwnd) };
-
-                            let (mut conversion, mut sentence) = (0, 0);
-
-                            let get_res: BOOL = unsafe {
-                                ImmGetConversionStatus(
-                                    hwnd,
-                                    &mut conversion,
-                                    &mut sentence,
-                                )
-                            };
-
-                            if get_res == FALSE {
-                                todo!("failure for ImmGetConversionStatus need to be handled!");
-                            }
-
-                            converions
-                                .entry(hwnd)
-                                .or_insert(conversion);
-
-                            let set_res: BOOL = unsafe {
-                                ImmSetConversionStatus(
-                                    hwnd,
-                                    IME_CMODE_ALPHANUMERIC,
-                                    0
-                                )
-                            };
-
-                            if set_res == FALSE {
-                                todo!("failure for ImmSetConversionStatus need to be handled!");
-                            }
-
-                            let release_res: BOOL = unsafe {
-                                ImmReleaseContext(hwnd, himc)
-                            };
-
-                            if release_res == FALSE {
-                                todo!("failure for ImmReleaseContext need to be handled!");
-                            }
-                        },
-
-                        // to recover the im conversion status.
-                        Msg::Recover => {
-                            let hwnd: HWND = unsafe { GetForegroundWindow() };
-                            let himc: HIMC = unsafe { ImmGetContext(hwnd) };
-
-                            let conversion = *converions.get(&hwnd).unwrap();
-
-                            let set_res: BOOL = unsafe {
-                                ImmSetConversionStatus(
-                                    hwnd,
-                                    conversion,
-                                    0
-                                )
-                            };
-
-                            if set_res == FALSE {
-                                todo!("failure for ImmSetConversionStatus need to be handled!");
-                            }
-
-                            let release_res: BOOL = unsafe {
-                                ImmReleaseContext(hwnd, himc)
-                            };
-
-                            if release_res == FALSE {
-                                todo!("failure for ImmReleaseContext need to be handled!");
-                            }
-
-                        },
-
-                        _ => {
-                            todo!("unexpected message passed!");
-                        }
-                    }
-                }
-            });
-
-            LISTENER.store(listener.into_raw_handle() as isize, Ordering::Relaxed);
-        },
-
-        // the `LISTENER` must be initialized when `DLL_PROCESS_ATTACH`.
-        DLL_PROCESS_DETACH => {
-            let mut written_bytes = 0;
-            let exit = Msg::Exit;
-            let mailslot = MAILSLOT.load(Ordering::Relaxed);
-            unsafe {
-                WriteFile(
-                    mailslot,
-                    &exit as *const _ as _,
-                    MSG_LENGTH,
-                    &mut written_bytes,
-                    std::ptr::null_mut() as *mut OVERLAPPED,
-                );
-
-                let listener = LISTENER.swap(0, Ordering::AcqRel);
-                WaitForSingleObject(listener, WAIT_TIMEOUT);
-                CloseHandle(listener);
-            }
-        },
+        DLL_PROCESS_ATTACH => (),
+        DLL_PROCESS_DETACH => (),
 
         _ => {
             // TODO: any other reason to call this dll should never happen.
