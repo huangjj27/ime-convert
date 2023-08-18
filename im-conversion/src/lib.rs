@@ -10,39 +10,39 @@
 //!
 //! [`im-select`]: https://github.com/daipeihust/im-select
 
-use windows_sys::Win32::Foundation::{
+use windows::Win32::Foundation::{
     HANDLE, HWND, INVALID_HANDLE_VALUE,
     BOOL, TRUE, FALSE,
 };
-use windows_sys::Win32::Foundation::{
+use windows::Win32::Foundation::{
     GetLastError,
     CloseHandle,
 };
-use windows_sys::Win32::Globalization::HIMC;
-use windows_sys::Win32::Security::SECURITY_ATTRIBUTES;
-use windows_sys::Win32::Storage::FileSystem::{
+use windows::Win32::Globalization::HIMC;
+use windows::Win32::Security::SECURITY_ATTRIBUTES;
+use windows::Win32::Storage::FileSystem::{
     ReadFile,
     WriteFile,
 };
-use windows_sys::Win32::System::Diagnostics::Debug::OutputDebugStringA;
-use windows_sys::Win32::System::IO::OVERLAPPED;
-use windows_sys::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
-use windows_sys::Win32::System::Mailslots::CreateMailslotA;
-use windows_sys::Win32::System::SystemServices::{
+use windows::Win32::System::Diagnostics::Debug::OutputDebugStringA;
+use windows::Win32::System::IO::OVERLAPPED;
+use windows::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
+use windows::Win32::System::Mailslots::CreateMailslotA;
+use windows::Win32::System::SystemServices::{
     DLL_PROCESS_ATTACH,
     DLL_PROCESS_DETACH,
     MAILSLOT_WAIT_FOREVER,
 };
-use windows_sys::Win32::System::Threading::WaitForSingleObject;
-use windows_sys::Win32::UI::WindowsAndMessaging::{
+use windows::Win32::System::Threading::WaitForSingleObject;
+use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow,
     GetWindowThreadProcessId,
 };
-use windows_sys::Win32::UI::Input::Ime::{
+use windows::Win32::UI::Input::Ime::{
     ImmGetContext, ImmReleaseContext,
     ImmGetConversionStatus, ImmSetConversionStatus,
 };
-use windows_sys::Win32::UI::Input::Ime::IME_CMODE_ALPHANUMERIC;
+use windows::Win32::UI::Input::Ime::IME_CMODE_ALPHANUMERIC;
 
 use std::collections::HashMap;
 use std::os::windows::prelude::IntoRawHandle;
