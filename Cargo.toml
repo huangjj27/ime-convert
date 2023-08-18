@@ -1,13 +1,11 @@
 [workspace]
 members = [
     "im-convert",
-    "im-conversion-listener",
+    "im-conversion",
 ]
 resolver = "2"
 
 [workspace.package]
 authors = ["huangjj27 <huangjj.27@qq.com>"]
-version = "0.0.0"
-
-# [patch.crates-io]
-# dll-syringe = { git = "https://github.com/OpenByteDev/dll-syringe.git", branch = "master" }
+version = "0.0.1"
+description =  "a better implementation of im-select on windows!"

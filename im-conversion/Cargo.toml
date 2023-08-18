@@ -1,5 +1,5 @@
 [package]
-name = "im-conversion-listener"
+name = "im-conversion"
 version = "0.1.0"
 description = "a better implementation of im-select on windows!"
 authors = ["huangjj27 <huangjj.27@qq.com>"]
