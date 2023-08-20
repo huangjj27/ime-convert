@@ -17,9 +17,7 @@
 //! [`im-select`]: https://github.com/daipeihust/im-select
 //! [`im-conversion-listener`]: https://github.com/huangjj27/ime-convert/tree/main/im-conversion-listener
 
-use windows_sys::Win32::Foundation::{
-    HWND,
-};
+use windows_sys::Win32::Foundation::HWND;
 
 use structopt::StructOpt;
 use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
@@ -43,18 +41,27 @@ fn main() {
     let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
     let process = OwnedProcess::from_pid(pid)
         .expect("Get the process of the foreground window failed!");
-    // let syringe = Syringe::for_process(process);
-    // syringe.find_or_inject("im_conversion_listener.dll")
-    //     .expect("injection failed");
+    let syringe = Syringe::for_process(process);
+    let injected_payload = syringe.find_or_inject("im_conversion.dll")
+        .expect("injection failed");
 
+    let remote_backup = unsafe {
+        syringe.get_raw_procedure::<extern "system" fn()>(injected_payload, "backup")
+            .unwrap().unwrap()
+    };
+
+    let remote_recover = unsafe {
+        syringe.get_raw_procedure::<extern "system" fn()>(injected_payload, "recover")
+            .unwrap().unwrap()
+    };
     // Send message.
-    let mut written_bytes = 0;
     match cmd {
         Cmd::Backup => {
+            remote_backup.call().unwrap();
         },
 
         Cmd::Recover => {
-
+            remote_recover.call().unwrap();
         }
     }
 
