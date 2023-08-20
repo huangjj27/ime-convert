@@ -31,12 +31,14 @@ use windows::Win32::UI::Input::Ime::{
 use windows::Win32::UI::Input::Ime::IME_CMODE_ALPHANUMERIC;
 
 use std::collections::HashMap;
-use std::sync::{ Arc, Mutex };
+use std::sync::{ OnceLock, Mutex };
 
 // the key `isize` is the inner of HWND
-const CONVERSIONS: Arc<Mutex<HashMap<isize, IME_CONVERSION_MODE>>> = Arc::new(Mutex::new(HashMap::new()));
+static CONVERSIONS: OnceLock<Mutex<HashMap<isize, IME_CONVERSION_MODE>>> = OnceLock::new();
 
-fn check_injected_process() -> u32 {
+#[no_mangle]
+#[allow(unused)]
+extern "system" fn check_injected_process() -> u32 {
     // Get the foreground window and its process id(`pid`),
     let h_wnd: HWND = unsafe { GetForegroundWindow() };
     let mut pid = 0;
@@ -46,6 +48,8 @@ fn check_injected_process() -> u32 {
 }
 
 /// Backup the IME conversion and set the convertion to `IME_CMODE_ALPHANUMERIC`
+#[no_mangle]
+#[allow(unused)]
 extern "system" fn backup() {
     // the ForegroundWindow of a process may change, so we have to
     // get the window first each time we are about to backup/recover
@@ -67,13 +71,17 @@ extern "system" fn backup() {
         todo!("failure for ImmGetConversionStatus need to be handled!");
     }
 
-    let mut conversions = CONVERSIONS.clone().lock()
+    let mut conversions = CONVERSIONS
+        .get()
+        .expect("Init CONVERSIONS failed!")
+        .lock()
         .expect("Get conversions failed!");
 
     // hack: `HWND` doesn't satisfy `HWND: hash`, but the isize value behind it does.
     (*conversions)
         .entry(hwnd.0)
         .or_insert(conversion);
+
 
     let set_res: BOOL = unsafe {
         ImmSetConversionStatus(
@@ -97,11 +105,16 @@ extern "system" fn backup() {
 }
 
 /// recover the IME conversion from the recorded CONVERSIONS map.
-fn recover() {
+#[no_mangle]
+#[allow(unused)]
+extern "system" fn recover() {
     let hwnd: HWND = unsafe { GetForegroundWindow() };
     let himc: HIMC = unsafe { ImmGetContext(hwnd) };
 
-    let conversions = CONVERSIONS.clone().lock()
+    let conversions = CONVERSIONS
+        .get()
+        .expect("Init CONVERSIONS failed!")
+        .lock()
         .expect("Get conversions failed!");
 
     let conversion = (*conversions).get(&hwnd.0).unwrap();
@@ -145,7 +158,12 @@ extern "system" fn DllMain(
     }
 
     match fdwReason {
-        DLL_PROCESS_ATTACH => (),
+        DLL_PROCESS_ATTACH => {
+            let _conversions = CONVERSIONS.get_or_init(|| {
+                Mutex::new(HashMap::new())
+            });
+        },
+
         DLL_PROCESS_DETACH => (),
 
         _ => {
