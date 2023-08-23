@@ -12,7 +12,7 @@
 
 use windows::Win32::Foundation::{
     HINSTANCE, HWND,
-    BOOL, TRUE, FALSE,
+    BOOL, TRUE, FALSE, GetLastError,
 };
 use windows::Win32::Globalization::HIMC;
 use windows::Win32::System::LibraryLoader::DisableThreadLibraryCalls;
@@ -26,9 +26,10 @@ use windows::Win32::UI::WindowsAndMessaging::{
 };
 use windows::Win32::UI::Input::Ime::{
     ImmGetContext, ImmReleaseContext,
-    ImmGetConversionStatus, ImmSetConversionStatus, IME_CONVERSION_MODE, IME_SMODE_AUTOMATIC,
+    ImmGetConversionStatus, ImmSetConversionStatus, IME_CONVERSION_MODE, IME_SMODE_AUTOMATIC, IME_SENTENCE_MODE,
 };
 use windows::Win32::UI::Input::Ime::IME_CMODE_ALPHANUMERIC;
+// use windows::core::HRESULT;
 
 use std::collections::HashMap;
 use std::sync::{ OnceLock, Mutex };
@@ -50,14 +51,16 @@ extern "system" fn check_injected_process() -> u32 {
 /// Backup the IME conversion and set the convertion to `IME_CMODE_ALPHANUMERIC`
 #[no_mangle]
 #[allow(unused)]
-extern "system" fn backup() {
+extern "system" fn backup() -> u32 {
     // the ForegroundWindow of a process may change, so we have to
     // get the window first each time we are about to backup/recover
     // the IME conversion.
     let hwnd: HWND = unsafe { GetForegroundWindow() };
     let himc: HIMC = unsafe { ImmGetContext(hwnd) };
 
-    let mut conversion = IME_CMODE_ALPHANUMERIC;
+    let mut conversion = IME_CONVERSION_MODE::default();
+
+    let mut result_code = 0;
 
     let get_res: BOOL = unsafe {
         ImmGetConversionStatus(
@@ -80,20 +83,28 @@ extern "system" fn backup() {
     // hack: `HWND` doesn't satisfy `HWND: hash`, but the isize value behind it does.
     (*conversions)
         .entry(hwnd.0)
+        .and_modify(|e| *e = conversion)
         .or_insert(conversion);
 
+    result_code = conversion.0;
 
     let set_res: BOOL = unsafe {
         ImmSetConversionStatus(
             himc,
-            IME_CMODE_ALPHANUMERIC,
-            IME_SMODE_AUTOMATIC,
+            IME_CONVERSION_MODE::default(),
+            IME_SENTENCE_MODE::default(),
         )
     };
 
     if set_res == FALSE {
-        todo!("failure for ImmSetConversionStatus need to be handled!");
+        let res = unsafe { GetLastError() };
+        if let Err(err) = res {
+            result_code = err.code().0 as u32;
+        } else {
+            result_code = 2;
+        }
     }
+
 
     let release_res: BOOL = unsafe {
         ImmReleaseContext(hwnd, himc)
@@ -102,6 +113,8 @@ extern "system" fn backup() {
     if release_res == FALSE {
         todo!("failure for ImmReleaseContext need to be handled!");
     }
+
+    return result_code;
 }
 
 /// recover the IME conversion from the recorded CONVERSIONS map.

@@ -17,10 +17,10 @@
 //! [`im-select`]: https://github.com/daipeihust/im-select
 //! [`im-conversion-listener`]: https://github.com/huangjj27/ime-convert/tree/main/im-conversion-listener
 
-use windows_sys::Win32::Foundation::HWND;
-
 use structopt::StructOpt;
-use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+use windows::Win32::Foundation::HWND;
+use windows::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+
 use dll_syringe::{Syringe, process::OwnedProcess};
 
 // the message passed to our listener is one byte long.
@@ -38,15 +38,20 @@ fn main() {
     // Get the foreground window and its process id(`pid`),
     let h_wnd: HWND = unsafe { GetForegroundWindow() };
     let mut pid = 0;
-    let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, &mut pid) };
+    let _thead_id = unsafe { GetWindowThreadProcessId(h_wnd, Some(&mut pid)) };
     let process = OwnedProcess::from_pid(pid)
         .expect("Get the process of the foreground window failed!");
     let syringe = Syringe::for_process(process);
-    let injected_payload = syringe.find_or_inject("im_conversion.dll")
+    let injected_payload = syringe.find_or_inject("target/debug/im_conversion.dll")
         .expect("injection failed");
 
+    let check_injected_process = unsafe {
+        syringe.get_raw_procedure::<extern "system" fn() -> u32>(injected_payload, "check_injected_process")
+            .unwrap().unwrap()
+    };
+
     let remote_backup = unsafe {
-        syringe.get_raw_procedure::<extern "system" fn()>(injected_payload, "backup")
+        syringe.get_raw_procedure::<extern "system" fn() -> u32>(injected_payload, "backup")
             .unwrap().unwrap()
     };
 
@@ -54,10 +59,18 @@ fn main() {
         syringe.get_raw_procedure::<extern "system" fn()>(injected_payload, "recover")
             .unwrap().unwrap()
     };
+
+    // before sending the message, check if the injected process is the same of the process call the binary
+    let remote_pid = check_injected_process.call().unwrap();
+    if remote_pid != pid {
+        println!("process not the same! injected process: {remote_pid:x}, front window process: {pid:x}");
+    }
+
     // Send message.
     match cmd {
         Cmd::Backup => {
-            remote_backup.call().unwrap();
+            let res = remote_backup.call().unwrap();
+            println!("remote backup result: {res:?}");
         },
 
         Cmd::Recover => {
