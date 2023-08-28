@@ -96,14 +96,14 @@ extern "system" fn backup() -> u32 {
         )
     };
 
-    if set_res == FALSE {
-        let res = unsafe { GetLastError() };
-        if let Err(err) = res {
-            result_code = err.code().0 as u32;
-        } else {
-            result_code = 2;
-        }
-    }
+    // if set_res == FALSE {
+    //     let res = unsafe { GetLastError() };
+    //     if let Err(err) = res {
+    //         result_code = err.code().0 as u32;
+    //     } else {
+    //         result_code = 2;
+    //     }
+    // }
 
 
     let release_res: BOOL = unsafe {
@@ -111,7 +111,8 @@ extern "system" fn backup() -> u32 {
     };
 
     if release_res == FALSE {
-        todo!("failure for ImmReleaseContext need to be handled!");
+        // todo!("failure for ImmReleaseContext need to be handled!");
+        result_code = 3;
     }
 
     return result_code;
@@ -120,7 +121,7 @@ extern "system" fn backup() -> u32 {
 /// recover the IME conversion from the recorded CONVERSIONS map.
 #[no_mangle]
 #[allow(unused)]
-extern "system" fn recover() {
+extern "system" fn recover() -> u32 {
     let hwnd: HWND = unsafe { GetForegroundWindow() };
     let himc: HIMC = unsafe { ImmGetContext(hwnd) };
 
@@ -132,25 +133,32 @@ extern "system" fn recover() {
 
     let conversion = (*conversions).get(&hwnd.0).unwrap();
 
+    let mut result_code = 0;
+
+    result_code = (*conversion).0;
+
     let set_res: BOOL = unsafe {
         ImmSetConversionStatus(
             himc,
             *conversion,
-            IME_SMODE_AUTOMATIC,
+            IME_SENTENCE_MODE::default(),
         )
     };
 
-    if set_res == FALSE {
-        todo!("failure for ImmSetConversionStatus need to be handled!");
-    }
+    // if set_res == FALSE {
+    //     result_code = 2;
+    // }
 
     let release_res: BOOL = unsafe {
         ImmReleaseContext(hwnd, himc)
     };
 
     if release_res == FALSE {
-        todo!("failure for ImmReleaseContext need to be handled!");
+        // todo!("failure for ImmReleaseContext need to be handled!");
+        result_code = 3;
     }
+
+    return result_code;
 }
 
 #[no_mangle]

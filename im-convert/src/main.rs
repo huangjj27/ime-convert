@@ -56,7 +56,7 @@ fn main() {
     };
 
     let remote_recover = unsafe {
-        syringe.get_raw_procedure::<extern "system" fn()>(injected_payload, "recover")
+        syringe.get_raw_procedure::<extern "system" fn() -> u32>(injected_payload, "recover")
             .unwrap().unwrap()
     };
 
@@ -74,7 +74,8 @@ fn main() {
         },
 
         Cmd::Recover => {
-            remote_recover.call().unwrap();
+            let res = remote_recover.call().unwrap();
+            println!("remote recover result: {res:?}");
         }
     }
 
